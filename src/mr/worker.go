@@ -48,6 +48,9 @@ func Worker(mapf func(string, string) []KeyValue,
 		if !ok || reply.Stage == WaitStage {
 			continue
 		}
+		if reply.Stage == ExitStage {
+			return
+		}
 
 		if reply.Stage == MapStage {
 			file, err := os.Open(reply.MapFile)
@@ -83,7 +86,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 			args := MrArgs{}
-			args.Task = MapStage
+			args.Stage = MapStage
 			args.MapFileIndex = reply.MapFileIndex
 			ok := call("Coordinator.FinishTask", &args, &reply)
 
@@ -131,7 +134,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			ofile.Close()
 
 			args := MrArgs{}
-			args.Task = ReduceStage
+			args.Stage = ReduceStage
 			args.ReduceFileIndex = reply.ReduceNum
 			ok := call("Coordinator.FinishTask", &args, &reply)
 

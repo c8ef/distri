@@ -12,11 +12,12 @@ const (
 	ReduceStage
 	FinishStage
 	WaitStage
+	ExitStage
 )
 
 type MrArgs struct {
 	// for Coordinator.FinishTask
-	Task            TaskStage
+	Stage           TaskStage
 	MapFileIndex    int
 	ReduceFileIndex int
 }

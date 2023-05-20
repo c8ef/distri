@@ -77,7 +77,7 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 		reply.Stage = WaitStage
 		return nil
 	}
-
+	reply.Stage = ExitStage
 	return nil
 }
 
@@ -85,7 +85,7 @@ func (c *Coordinator) FinishTask(args *MrArgs, reply *MrReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if args.Task == MapStage {
+	if args.Stage == MapStage {
 		c.files[args.MapFileIndex].state = Done
 		c.finishedMap++
 
@@ -96,7 +96,7 @@ func (c *Coordinator) FinishTask(args *MrArgs, reply *MrReply) error {
 		return nil
 	}
 
-	if args.Task == ReduceStage {
+	if args.Stage == ReduceStage {
 		c.nReduce[args.ReduceFileIndex].state = Done
 		c.finishedReduce++
 
