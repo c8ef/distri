@@ -48,7 +48,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			continue
 		}
 
-		if reply.Task == MapTask {
+		if reply.Task == MapStage {
 			file, err := os.Open(reply.MapFile)
 			if err != nil {
 				log.Fatalf("cannot open %v", reply.MapFile)

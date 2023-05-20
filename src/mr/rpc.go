@@ -5,22 +5,22 @@ import (
 	"strconv"
 )
 
-type TaskType int
+type TaskStage int
 
 const (
-	MapTask TaskType = iota
-	ReduceTask
-	FinishTask
+	MapStage TaskStage = iota
+	ReduceStage
+	FinishStage
 )
 
 type MrArgs struct {
 	// for Coordinator.Finish
-	Task         TaskType
+	Task         TaskStage
 	MapFileIndex int
 }
 
 type MrReply struct {
-	Task         TaskType
+	Task         TaskStage
 	MapFile      string
 	MapFileIndex int
 	ReduceNum    int
