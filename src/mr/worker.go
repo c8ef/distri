@@ -71,7 +71,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 			for i := 0; i < reply.NReduce; i++ {
-				file, err := os.Create(fmt.Sprintf("mr-%v-%v", reply.MapFileIndex, i))
+				file, err := os.Create(fmt.Sprintf("mr-%v-%v", reply.TaskIndex, i))
 				if err != nil {
 					log.Fatalf("cannot create file")
 				}
@@ -87,7 +87,7 @@ func Worker(mapf func(string, string) []KeyValue,
 
 			args := MrArgs{}
 			args.Stage = MapStage
-			args.MapFileIndex = reply.MapFileIndex
+			args.Index = reply.TaskIndex
 			ok := call("Coordinator.FinishTask", &args, &reply)
 
 			if !ok {
@@ -96,10 +96,10 @@ func Worker(mapf func(string, string) []KeyValue,
 		}
 		if reply.Stage == ReduceStage {
 			intermediate := []KeyValue{}
-			for i := 0; i < reply.MapNum; i++ {
-				file, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.ReduceNum))
+			for i := 0; i < reply.NMap; i++ {
+				file, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
 				if err != nil {
-					log.Fatalf("cannot open %v", fmt.Sprintf("mr-%d-%d", i, reply.ReduceNum))
+					log.Fatalf("cannot open %v", fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
 				}
 				dec := json.NewDecoder(file)
 				for {
@@ -113,7 +113,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 			sort.Sort(ByKey(intermediate))
 
-			oname := fmt.Sprintf("mr-out-%d", reply.ReduceNum)
+			oname := fmt.Sprintf("mr-out-%d", reply.TaskIndex)
 			ofile, _ := os.Create(oname)
 
 			i := 0
@@ -135,7 +135,7 @@ func Worker(mapf func(string, string) []KeyValue,
 
 			args := MrArgs{}
 			args.Stage = ReduceStage
-			args.ReduceFileIndex = reply.ReduceNum
+			args.Index = reply.TaskIndex
 			ok := call("Coordinator.FinishTask", &args, &reply)
 
 			if !ok {

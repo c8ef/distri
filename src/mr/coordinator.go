@@ -32,9 +32,9 @@ type ReduceTask struct {
 type Coordinator struct {
 	mu             sync.Mutex
 	stage          TaskStage
+	maps           []MapTask
 	finishedMap    int
-	files          []MapTask
-	nReduce        []ReduceTask
+	reduces        []ReduceTask
 	finishedReduce int
 }
 
@@ -44,14 +44,14 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 
 	if c.stage == MapStage {
 		reply.Stage = MapStage
-		for i, v := range c.files {
+		for i, v := range c.maps {
 			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
 				reply.MapFile = v.filename
-				reply.MapFileIndex = i
-				reply.NReduce = len(c.nReduce)
+				reply.TaskIndex = i
+				reply.NReduce = len(c.reduces)
 
-				c.files[i].state = Doing
-				c.files[i].epoch = time.Now().Unix()
+				c.maps[i].state = Doing
+				c.maps[i].epoch = time.Now().Unix()
 
 				return nil
 			}
@@ -62,14 +62,14 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 
 	if c.stage == ReduceStage {
 		reply.Stage = ReduceStage
-		reply.MapNum = len(c.files)
-		for i, v := range c.nReduce {
+		reply.NMap = len(c.maps)
+		for i, v := range c.reduces {
 			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
-				reply.ReduceNum = i
-				reply.NReduce = len(c.nReduce)
+				reply.TaskIndex = i
+				reply.NReduce = len(c.reduces)
 
-				c.nReduce[i].state = Doing
-				c.nReduce[i].epoch = time.Now().Unix()
+				c.reduces[i].state = Doing
+				c.reduces[i].epoch = time.Now().Unix()
 
 				return nil
 			}
@@ -86,23 +86,23 @@ func (c *Coordinator) FinishTask(args *MrArgs, reply *MrReply) error {
 	defer c.mu.Unlock()
 
 	if args.Stage == MapStage {
-		c.files[args.MapFileIndex].state = Done
+		c.maps[args.Index].state = Done
 		c.finishedMap++
 
-		if c.finishedMap == len(c.files) {
+		if c.finishedMap == len(c.maps) {
 			c.stage = ReduceStage
 		}
-
 		return nil
 	}
 
 	if args.Stage == ReduceStage {
-		c.nReduce[args.ReduceFileIndex].state = Done
+		c.reduces[args.Index].state = Done
 		c.finishedReduce++
 
-		if c.finishedReduce == len(c.nReduce) {
+		if c.finishedReduce == len(c.reduces) {
 			c.stage = FinishStage
 		}
+		return nil
 	}
 	return nil
 }
@@ -134,13 +134,13 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-
+	c.stage = MapStage
 	for _, v := range files {
-		c.files = append(c.files, MapTask{v, Todo, 0})
+		c.maps = append(c.maps, MapTask{v, Todo, 0})
 	}
 	c.finishedMap = 0
-	c.nReduce = make([]ReduceTask, nReduce)
-	c.stage = MapStage
+	c.reduces = make([]ReduceTask, nReduce)
+	c.finishedReduce = 0
 
 	c.server()
 	return &c

@@ -16,19 +16,18 @@ const (
 )
 
 type MrArgs struct {
+	// Coordinator.GetTask has no argument
 	// for Coordinator.FinishTask
-	Stage           TaskStage
-	MapFileIndex    int
-	ReduceFileIndex int
+	Stage TaskStage
+	Index int
 }
 
 type MrReply struct {
-	Stage        TaskStage
-	MapFile      string
-	MapFileIndex int
-	ReduceNum    int
-	NReduce      int
-	MapNum       int
+	Stage     TaskStage
+	TaskIndex int
+	MapFile   string
+	NMap      int
+	NReduce   int
 }
 
 func coordinatorSock() string {
