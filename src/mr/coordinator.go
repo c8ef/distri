@@ -55,7 +55,7 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 	return nil
 }
 
-func (c *Coordinator) Finish(args *MrArgs, reply *MrReply) error {
+func (c *Coordinator) FinishTask(args *MrArgs, reply *MrReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

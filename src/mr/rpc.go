@@ -14,7 +14,7 @@ const (
 )
 
 type MrArgs struct {
-	// for Coordinator.Finish
+	// for Coordinator.FinishTask
 	Task         TaskStage
 	MapFileIndex int
 }

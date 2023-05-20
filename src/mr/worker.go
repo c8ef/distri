@@ -81,7 +81,7 @@ func Worker(mapf func(string, string) []KeyValue,
 				file.Close()
 			}
 
-			ok := call("Coordinator.Finish", &args, &reply)
+			ok := call("Coordinator.FinishTask", &args, &reply)
 
 			if !ok {
 				continue
