@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -81,6 +82,57 @@ func Worker(mapf func(string, string) []KeyValue,
 				file.Close()
 			}
 
+			args := MrArgs{}
+			args.Task = MapStage
+			args.MapFileIndex = reply.MapFileIndex
+			ok := call("Coordinator.FinishTask", &args, &reply)
+
+			if !ok {
+				continue
+			}
+		}
+		if reply.Stage == ReduceStage {
+			intermediate := []KeyValue{}
+			for i := 0; i < reply.MapNum; i++ {
+				file, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.ReduceNum))
+				if err != nil {
+					log.Fatalf("cannot open %v", fmt.Sprintf("mr-%d-%d", i, reply.ReduceNum))
+				}
+				dec := json.NewDecoder(file)
+				for {
+					var kv KeyValue
+					if err := dec.Decode(&kv); err != nil {
+						break
+					}
+					intermediate = append(intermediate, kv)
+				}
+				file.Close()
+			}
+			sort.Sort(ByKey(intermediate))
+
+			oname := fmt.Sprintf("mr-out-%d", reply.ReduceNum)
+			ofile, _ := os.Create(oname)
+
+			i := 0
+			for i < len(intermediate) {
+				j := i + 1
+				for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+					j++
+				}
+				values := []string{}
+				for k := i; k < j; k++ {
+					values = append(values, intermediate[k].Value)
+				}
+				output := reducef(intermediate[i].Key, values)
+
+				fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+				i = j
+			}
+			ofile.Close()
+
+			args := MrArgs{}
+			args.Task = ReduceStage
+			args.ReduceFileIndex = reply.ReduceNum
 			ok := call("Coordinator.FinishTask", &args, &reply)
 
 			if !ok {

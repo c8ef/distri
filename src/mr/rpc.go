@@ -16,8 +16,9 @@ const (
 
 type MrArgs struct {
 	// for Coordinator.FinishTask
-	Task         TaskStage
-	MapFileIndex int
+	Task            TaskStage
+	MapFileIndex    int
+	ReduceFileIndex int
 }
 
 type MrReply struct {
@@ -26,6 +27,7 @@ type MrReply struct {
 	MapFileIndex int
 	ReduceNum    int
 	NReduce      int
+	MapNum       int
 }
 
 func coordinatorSock() string {

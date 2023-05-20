@@ -25,16 +25,17 @@ type MapTask struct {
 }
 
 type ReduceTask struct {
-	state TaskStage
+	state TaskState
 	epoch int64
 }
 
 type Coordinator struct {
-	mu          sync.Mutex
-	stage       TaskStage
-	finishedMap int
-	files       []MapTask
-	nReduce     []ReduceTask
+	mu             sync.Mutex
+	stage          TaskStage
+	finishedMap    int
+	files          []MapTask
+	nReduce        []ReduceTask
+	finishedReduce int
 }
 
 func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
@@ -59,6 +60,24 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 		return nil
 	}
 
+	if c.stage == ReduceStage {
+		reply.Stage = ReduceStage
+		reply.MapNum = len(c.files)
+		for i, v := range c.nReduce {
+			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
+				reply.ReduceNum = i
+				reply.NReduce = len(c.nReduce)
+
+				c.nReduce[i].state = Doing
+				c.nReduce[i].epoch = time.Now().Unix()
+
+				return nil
+			}
+		}
+		reply.Stage = WaitStage
+		return nil
+	}
+
 	return nil
 }
 
@@ -68,13 +87,22 @@ func (c *Coordinator) FinishTask(args *MrArgs, reply *MrReply) error {
 
 	if args.Task == MapStage {
 		c.files[args.MapFileIndex].state = Done
-
 		c.finishedMap++
+
 		if c.finishedMap == len(c.files) {
 			c.stage = ReduceStage
 		}
 
 		return nil
+	}
+
+	if args.Task == ReduceStage {
+		c.nReduce[args.ReduceFileIndex].state = Done
+		c.finishedReduce++
+
+		if c.finishedReduce == len(c.nReduce) {
+			c.stage = FinishStage
+		}
 	}
 	return nil
 }
