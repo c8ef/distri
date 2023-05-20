@@ -18,18 +18,23 @@ const (
 	Done
 )
 
-type MapFile struct {
+type MapTask struct {
 	filename string
 	state    TaskState
 	epoch    int64
+}
+
+type ReduceTask struct {
+	state TaskStage
+	epoch int64
 }
 
 type Coordinator struct {
 	mu          sync.Mutex
 	stage       TaskStage
 	finishedMap int
-	files       []MapFile
-	nReduce     []bool
+	files       []MapTask
+	nReduce     []ReduceTask
 }
 
 func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
@@ -37,7 +42,7 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 	defer c.mu.Unlock()
 
 	if c.stage == MapStage {
-		reply.Task = MapStage
+		reply.Stage = MapStage
 		for i, v := range c.files {
 			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
 				reply.MapFile = v.filename
@@ -50,6 +55,8 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 				return nil
 			}
 		}
+		reply.Stage = WaitStage
+		return nil
 	}
 
 	return nil
@@ -101,10 +108,10 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 
 	for _, v := range files {
-		c.files = append(c.files, MapFile{v, Todo, 0})
+		c.files = append(c.files, MapTask{v, Todo, 0})
 	}
 	c.finishedMap = 0
-	c.nReduce = make([]bool, nReduce)
+	c.nReduce = make([]ReduceTask, nReduce)
 	c.stage = MapStage
 
 	c.server()

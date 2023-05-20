@@ -11,6 +11,7 @@ const (
 	MapStage TaskStage = iota
 	ReduceStage
 	FinishStage
+	WaitStage
 )
 
 type MrArgs struct {
@@ -20,7 +21,7 @@ type MrArgs struct {
 }
 
 type MrReply struct {
-	Task         TaskStage
+	Stage        TaskStage
 	MapFile      string
 	MapFileIndex int
 	ReduceNum    int

@@ -44,11 +44,11 @@ func Worker(mapf func(string, string) []KeyValue,
 
 		ok := call("Coordinator.GetTask", &args, &reply)
 
-		if !ok {
+		if !ok || reply.Stage == WaitStage {
 			continue
 		}
 
-		if reply.Task == MapStage {
+		if reply.Stage == MapStage {
 			file, err := os.Open(reply.MapFile)
 			if err != nil {
 				log.Fatalf("cannot open %v", reply.MapFile)
