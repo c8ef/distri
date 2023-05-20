@@ -34,6 +34,92 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
+func HandleMap(reply MrReply, mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string) {
+	file, err := os.Open(reply.MapFile)
+	if err != nil {
+		log.Fatalf("cannot open %v", reply.MapFile)
+	}
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot read %v", reply.MapFile)
+	}
+	file.Close()
+
+	kva := mapf(reply.MapFile, string(content))
+	intermediate := make([][]KeyValue, reply.NReduce)
+
+	for _, kv := range kva {
+		intermediate[ihash(kv.Key)%reply.NReduce] = append(intermediate[ihash(kv.Key)%reply.NReduce], kv)
+	}
+
+	for i := 0; i < reply.NReduce; i++ {
+		file, err := os.Create(fmt.Sprintf("mr-%v-%v", reply.TaskIndex, i))
+		if err != nil {
+			log.Fatalf("cannot create file")
+		}
+		enc := json.NewEncoder(file)
+		for _, kv := range intermediate[i] {
+			err := enc.Encode(&kv)
+			if err != nil {
+				log.Fatalf("cannot encode json")
+			}
+		}
+		file.Close()
+	}
+
+	args := MrArgs{}
+	args.Stage = MapStage
+	args.Index = reply.TaskIndex
+	call("Coordinator.FinishTask", &args, &reply)
+}
+
+func HandleReduce(reply MrReply, mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string) {
+	intermediate := []KeyValue{}
+	for i := 0; i < reply.NMap; i++ {
+		file, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
+		if err != nil {
+			log.Fatalf("cannot open %v", fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
+		}
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			intermediate = append(intermediate, kv)
+		}
+		file.Close()
+	}
+	sort.Sort(ByKey(intermediate))
+
+	oname := fmt.Sprintf("mr-out-%d", reply.TaskIndex)
+	ofile, _ := os.Create(oname)
+
+	i := 0
+	for i < len(intermediate) {
+		j := i + 1
+		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			j++
+		}
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, intermediate[k].Value)
+		}
+		output := reducef(intermediate[i].Key, values)
+
+		fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+		i = j
+	}
+	ofile.Close()
+
+	args := MrArgs{}
+	args.Stage = ReduceStage
+	args.Index = reply.TaskIndex
+	call("Coordinator.FinishTask", &args, &reply)
+}
+
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
@@ -53,94 +139,10 @@ func Worker(mapf func(string, string) []KeyValue,
 		}
 
 		if reply.Stage == MapStage {
-			file, err := os.Open(reply.MapFile)
-			if err != nil {
-				log.Fatalf("cannot open %v", reply.MapFile)
-			}
-			content, err := ioutil.ReadAll(file)
-			if err != nil {
-				log.Fatalf("cannot read %v", reply.MapFile)
-			}
-			file.Close()
-
-			kva := mapf(reply.MapFile, string(content))
-			intermediate := make([][]KeyValue, reply.NReduce)
-
-			for _, kv := range kva {
-				intermediate[ihash(kv.Key)%reply.NReduce] = append(intermediate[ihash(kv.Key)%reply.NReduce], kv)
-			}
-
-			for i := 0; i < reply.NReduce; i++ {
-				file, err := os.Create(fmt.Sprintf("mr-%v-%v", reply.TaskIndex, i))
-				if err != nil {
-					log.Fatalf("cannot create file")
-				}
-				enc := json.NewEncoder(file)
-				for _, kv := range intermediate[i] {
-					err := enc.Encode(&kv)
-					if err != nil {
-						log.Fatalf("cannot encode json")
-					}
-				}
-				file.Close()
-			}
-
-			args := MrArgs{}
-			args.Stage = MapStage
-			args.Index = reply.TaskIndex
-			ok := call("Coordinator.FinishTask", &args, &reply)
-
-			if !ok {
-				continue
-			}
+			HandleMap(reply, mapf, reducef)
 		}
 		if reply.Stage == ReduceStage {
-			intermediate := []KeyValue{}
-			for i := 0; i < reply.NMap; i++ {
-				file, err := os.Open(fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
-				if err != nil {
-					log.Fatalf("cannot open %v", fmt.Sprintf("mr-%d-%d", i, reply.TaskIndex))
-				}
-				dec := json.NewDecoder(file)
-				for {
-					var kv KeyValue
-					if err := dec.Decode(&kv); err != nil {
-						break
-					}
-					intermediate = append(intermediate, kv)
-				}
-				file.Close()
-			}
-			sort.Sort(ByKey(intermediate))
-
-			oname := fmt.Sprintf("mr-out-%d", reply.TaskIndex)
-			ofile, _ := os.Create(oname)
-
-			i := 0
-			for i < len(intermediate) {
-				j := i + 1
-				for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
-					j++
-				}
-				values := []string{}
-				for k := i; k < j; k++ {
-					values = append(values, intermediate[k].Value)
-				}
-				output := reducef(intermediate[i].Key, values)
-
-				fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
-				i = j
-			}
-			ofile.Close()
-
-			args := MrArgs{}
-			args.Stage = ReduceStage
-			args.Index = reply.TaskIndex
-			ok := call("Coordinator.FinishTask", &args, &reply)
-
-			if !ok {
-				continue
-			}
+			HandleReduce(reply, mapf, reducef)
 		}
 	}
 }

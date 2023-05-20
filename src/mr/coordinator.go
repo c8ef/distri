@@ -42,13 +42,15 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	reply.NMap = len(c.maps)
+	reply.NReduce = len(c.reduces)
+
 	if c.stage == MapStage {
 		reply.Stage = MapStage
 		for i, v := range c.maps {
 			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
 				reply.MapFile = v.filename
 				reply.TaskIndex = i
-				reply.NReduce = len(c.reduces)
 
 				c.maps[i].state = Doing
 				c.maps[i].epoch = time.Now().Unix()
@@ -62,11 +64,9 @@ func (c *Coordinator) GetTask(args *MrArgs, reply *MrReply) error {
 
 	if c.stage == ReduceStage {
 		reply.Stage = ReduceStage
-		reply.NMap = len(c.maps)
 		for i, v := range c.reduces {
 			if v.state == Todo || v.state == Doing && (time.Now().Unix()-v.epoch >= 10) {
 				reply.TaskIndex = i
-				reply.NReduce = len(c.reduces)
 
 				c.reduces[i].state = Doing
 				c.reduces[i].epoch = time.Now().Unix()
