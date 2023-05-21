@@ -125,7 +125,7 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	for {
-		time.Sleep(time.Second)
+		time.Sleep(50 * time.Millisecond)
 		args := MrArgs{}
 		reply := MrReply{}
 
